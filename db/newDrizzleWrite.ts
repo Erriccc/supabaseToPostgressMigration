@@ -7,7 +7,7 @@ import config from '../config';
 const tables = config.tables;
 
 // Add these interfaces at the top of the file
-interface TokenDebugResult {
+interface TokenDebugResult { 
   name?: string;
   accessToken?: string;
   error?: string;
@@ -157,7 +157,7 @@ const insertUserData = async (supabase: any, userId: string, email: string, user
         .limit(1);
 
       console.log('1XXXXXXXXXXXXXXXXXXXXX: ', newUserData);
-      return newUserData;
+      return newUserData[0]; // Return single object to match Supabase .single()
     }
 
     let newUserDataBeforeInsert = null;
@@ -567,7 +567,7 @@ const insertPageData = async (supabase: any, userId: string, appId: number, fbWe
 };
 
 // Convert validateBusinessAdminUser function from Supabase to Drizzle ORM
-const validateBusinessAdminUser = async (supabase: any, businessUsersData: any, businessAdminEmail: string) => {
+const validateBusinessAdminUser = async (businessUsersData: any, businessAdminEmail: string) => {
   try {
     console.log('Validating business admin user...');
 
@@ -604,7 +604,7 @@ const validateBusinessAdminUser = async (supabase: any, businessUsersData: any, 
 };
 
 // Convert processBusinessAgencyInvitations function from Supabase to Drizzle ORM
-const processBusinessAgencyInvitations = async (supabase: any, assignedPages: any, businessIds: string, systemUserAccessToken: string, existingUserFbId: string) => {
+const processBusinessAgencyInvitations = async (assignedPages: any, businessIds: string, systemUserAccessToken: string, existingUserFbId: string) => {
   try {
     console.log('Processing business agency invitations...');
 
@@ -657,7 +657,6 @@ const processBusinessAgencyInvitations = async (supabase: any, assignedPages: an
       // Invite each business as an agency for this page
       for (const businessId of businessIdArray) {
         const result = await inviteBusinessAsAgency(
-          supabase,
           page.id,
           businessId,
           accessToken,
@@ -669,7 +668,6 @@ const processBusinessAgencyInvitations = async (supabase: any, assignedPages: an
           try {
             console.log('Inviting business as agency with all permitted tasks access token:', accessToken);
             const newResults = await inviteBusinessAsAgency(
-              supabase,
               page.id,
               businessId,
               accessToken,
@@ -700,7 +698,7 @@ const processBusinessAgencyInvitations = async (supabase: any, assignedPages: an
 };
 
 // Helper function for inviting business as agency (from original code)
-const inviteBusinessAsAgency = async (supabase: any, pageId: string, businessId: string, accessToken: string, permittedTasks: string[]) => {
+const inviteBusinessAsAgency = async (pageId: string, businessId: string, accessToken: string, permittedTasks: string[]) => {
   try {
     console.log(`Inviting business ${businessId} as agency for page ${pageId}`);
 
@@ -725,7 +723,7 @@ const inviteBusinessAsAgency = async (supabase: any, pageId: string, businessId:
 };
 
 // Convert getFbPageId function from Supabase to Drizzle ORM
-const getFbPageId = async (supabase: any, identifier: string) => {  
+const getFbPageId = async (identifier: string, supabase: any) => {
   try {
     console.log('Attempting to retrieve fbPageId for identifier:', identifier);
 
@@ -746,18 +744,18 @@ const getFbPageId = async (supabase: any, identifier: string) => {
     if (data && data.length > 0) {
       console.log('fbPageId found:', data[0].fb_page_id);
       return data[0].fb_page_id;
-    } 
+    }
 
     console.log('No page found for identifier:', identifier);
-    return null; 
+    return null;
   } catch (err) {
     console.error('Unexpected error in getFbPageId:', err);
-    return null; 
+    return null;
   }
 };
 
 // Convert getIgId function from Supabase to Drizzle ORM
-const getIgId = async (supabase: any, identifier: string) => { 
+const getIgId = async (identifier: string, supabase: any) => {
   try {
     console.log('Attempting to retrieve fbPageId for identifier:', identifier);
 
@@ -785,13 +783,13 @@ const getIgId = async (supabase: any, identifier: string) => {
       const hasIgId = data[0].has_ig_page;
       const fbPageId = data[0].fb_page_id;
       return {igId: igId, hasIgId: hasIgId, fbPageId};
-    } 
+    }
 
     console.log('No page found for identifier:', identifier);
-    return null; 
+    return null;
   } catch (err) {
     console.error('Unexpected error in getIgId:', err);
-    return null; 
+    return null;
   }
 };
 
@@ -883,7 +881,12 @@ const getPageAccessToken = async (pageId: string, supabase: any) => {
 
 // Convert getAdDataAndUserDataFromDbWithAdIdOrAdTraceId function from Supabase to Drizzle ORM
 const getAdDataAndUserDataFromDbWithAdIdOrAdTraceId = async (supabase: any, identifier: string) => {
-  const adData = await getAdFromDbByAdIdOrAdTraceId(supabase, identifier);
+  const {data:adData, error:adError} = await getAdFromDbByAdIdOrAdTraceId(supabase, identifier);
+  if (adError) {
+    console.error('Error retrieving ad details:', adError);
+    return {matchFound: false};
+  }
+
   if (adData && adData.length > 0) {
     console.log('adData', adData);
     console.log('getAdDataAndUserData Found ad details:', adData[0]);
@@ -927,17 +930,19 @@ const getAdFromDbByAdIdOrAdTraceId = async (supabase: any, adId: string) => {
           )
         )
       );
-    return data;
+    // return {data};
+    console.log('Ad from db:', data);
+    return { data: convertBigInts(data), error: null };
   } catch (error) {
     console.error('Error getting ad from db:', error);
-    return [];
+    return { data: null, error: error };
   }
 };
 
 // Convert getPageAccessTokenByAdIdOrAdTraceIdAndPageId function from Supabase to Drizzle ORM
-const getPageAccessTokenByAdIdOrAdTraceIdAndPageId = async (supabase: any, identifier: string, pageId: string) => {
+const getPageAccessTokenByAdIdOrAdTraceIdAndPageId = async (identifier: string, pageId: string, supabase: any) => {
   console.log('getPageAccessTokenByAdIdOrAdTraceIdAndPageId getting the page access token for identifier:', identifier, 'and pageId:', pageId);
-  
+
   // check if page is managed by multiple users
   const {isManagedByMultipleUsers, data:pagesData, userDataArray} = await checkIfPageIsManagedByMultipleUsers(pageId,supabase, true);
   console.log('isManagedByMultipleUsers:', isManagedByMultipleUsers);
@@ -955,7 +960,12 @@ const getPageAccessTokenByAdIdOrAdTraceIdAndPageId = async (supabase: any, ident
   if (isManagedByMultipleUsers) {
     try {
       console.log('Attempting to get page access token by ad trace id:', identifier);
-      const adData = await getAdFromDbByAdIdOrAdTraceId(supabase, identifier);
+      const {data:adData, error:adError} = await getAdFromDbByAdIdOrAdTraceId(supabase, identifier);
+
+      if (adError) {
+        console.error('Error retrieving ad details:', adError);
+        return returner;
+      }
 
       if (adData && adData.length > 0) {
         console.log('getPageAccessTokenByAdTraceIdAndPageId Found ad details:', adData[0]);
@@ -1010,7 +1020,7 @@ const getPageAccessTokenByAdIdOrAdTraceIdAndPageId = async (supabase: any, ident
 };
 
 // Convert getPageAccessTokenAndValidateBeforeReturn function from Supabase to Drizzle ORM
-const getPageAccessTokenAndValidateBeforeReturn = async (supabase: any, pageId: string) => {
+const getPageAccessTokenAndValidateBeforeReturn = async (pageId: string, supabase: any) => {
   // This function was commented out in the original code
   // Keeping the same structure but with Drizzle syntax
   console.log('getPageAccessTokenAndValidateBeforeReturn - function implementation was commented out in original');
@@ -1018,7 +1028,7 @@ const getPageAccessTokenAndValidateBeforeReturn = async (supabase: any, pageId: 
 };
 
 // Convert getPageDataByDbId function from Supabase to Drizzle ORM
-async function getPageDataByDbId(supabase: any, pageDbId: string) {
+async function getPageDataByDbId(pageDbId: string, supabase: any) {
   try {
     const data = await db
       .select()
@@ -1030,7 +1040,7 @@ async function getPageDataByDbId(supabase: any, pageDbId: string) {
         )
       )
       .limit(1);
-    
+
     if (data.length === 0) {
       throw new Error('Error fetching page data');
     }
@@ -1378,10 +1388,10 @@ async function getCreativeFromDbByCreativeIdOrAdTraceId(supabase: any, creativeI
 }
 
 // Convert readMessages function from Supabase to Drizzle ORM
-async function readMessages(supabase: any, queryParams: any) { 
+async function readMessages(queryParams: any, supabase: any) {
   try {
     const whereConditions = [eq(tables.pageMessagesTable.app_id, Number(config.appId))];
-    
+
     // Add other query parameters with proper type handling
     for (const [key, value] of Object.entries(queryParams)) {
       if (key === 'id') {
@@ -1412,10 +1422,10 @@ async function readMessages(supabase: any, queryParams: any) {
 }
 
 // Convert readComments function from Supabase to Drizzle ORM
-async function readComments(supabase: any, queryParams: any) {
+async function readComments(queryParams: any, supabase: any) {
   try {
     const whereConditions = [eq(tables.pageCommentsTable.app_id, Number(config.appId))];
-    
+
     // Add other query parameters with proper type handling
     for (const [key, value] of Object.entries(queryParams)) {
       if (key === 'id') {
@@ -1440,10 +1450,10 @@ async function readComments(supabase: any, queryParams: any) {
 }
 
 // Convert readPageData function from Supabase to Drizzle ORM
-async function readPageData(supabase: any, queryParams: any) {
+async function readPageData(queryParams: any, supabase: any) {
   try {
     const whereConditions = [eq(tables.pageTable.app_id, Number(config.appId))];
-    
+
     // Add other query parameters with proper type handling
     for (const [key, value] of Object.entries(queryParams)) {
       if (key === 'id') {
@@ -1796,7 +1806,7 @@ async function updateCommentSentToAudosServer(supabase: any, commentId: string) 
 }
 
 // Convert getAPageAccessTokenThatIsValid function from Supabase to Drizzle ORM
-async function getAPageAccessTokenThatIsValid(supabase: any, pageId: string) {
+async function getAPageAccessTokenThatIsValid(pageId: string, supabase: any) {
   try {
     console.log('Getting valid page access token for pageId:', pageId);
     console.log('config.appId', config.appId);
@@ -1822,7 +1832,7 @@ async function getAPageAccessTokenThatIsValid(supabase: any, pageId: string) {
       console.log('pageData found, return here?', pageData[0]);
       return pageData[0].page_access_token;
     }
-    
+
   } catch (err) {
     console.error('Error in getAPageAccessTokenThatIsValid:', err);
     console.log(' returning a fall default page access token');
@@ -1868,14 +1878,14 @@ async function updateIsTokenValid(pageAccessToken: string, isTokenValid: boolean
 }
 
 // Convert getValidUserAccessToken function from Supabase to Drizzle ORM
-async function getValidUserAccessToken(supabase: any, adId: string, pageId: string, requirements = { needsMessaging: false, needsInstagram: false, needsAds: true }) {
+async function getValidUserAccessToken(adId: string, pageId: string, supabase: any, requirements = { needsMessaging: false, needsInstagram: false, needsAds: true }) {
   // This function appears to be empty in the original, so implementing as placeholder
   console.log('getValidUserAccessToken called with:', { adId, pageId, requirements });
   return null;
 }
 
 // Convert getValidUserAccessTokensForAd function from Supabase to Drizzle ORM
-async function getValidUserAccessTokensForAd(supabase: any, adId: string, pageId: string, requirements = { needsMessaging: false, needsInstagram: false, needsAds: true }) {
+async function getValidUserAccessTokensForAd(adId: string, pageId: string, supabase: any, requirements = { needsMessaging: false, needsInstagram: false, needsAds: true }) {
   try {
     console.log('getValidUserAccessTokensForAd valid user access token for adId:', adId);
 
@@ -2090,7 +2100,7 @@ async function makeFbApiCallWithPageAccessTokenThatIsValid(params: {
 }
 
 // Convert getUserProfileIfNeeded function from Supabase to Drizzle ORM
-async function getUserProfileIfNeeded(supabase: any, senderId: string, pageAccessToken: string, platform: string, fbPageId: string, fbConversationId: string) {
+async function getUserProfileIfNeeded(senderId: string, pageAccessToken: string, platform: string, fbPageId: string, fbConversationId: string, supabase: any) {
   try {
     // First check if we already have profile data for this conversation
     const existingConversation = await db
@@ -2159,10 +2169,14 @@ async function getUserProfileIfNeeded(supabase: any, senderId: string, pageAcces
 
 // Convert webhookFilter class from Supabase to Drizzle ORM
 class webhookFilter {
+  
   private returnableObject: any;
+  private supabase: any;
 
-  constructor(returnableObject: any) {
+  
+  constructor(returnableObject, supabase) {
     this.returnableObject = returnableObject;
+    this.supabase = supabase;
   }
 
   async saveToDb() {
