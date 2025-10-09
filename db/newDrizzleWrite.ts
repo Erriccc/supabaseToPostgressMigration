@@ -3139,7 +3139,7 @@ async function getUserAccessToken(supabase: any, userId: string) {
     throw new Error('Error fetching user access token1');
   }
 }
-
+// Convert
 // Convert activatePageWithBestConfig function from Supabase to Drizzle ORM
 const activatePageWithBestConfig = async (supabase: any, appId: number, targetPage: any) => {
   try {
